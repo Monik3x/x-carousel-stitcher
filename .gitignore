@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+*.xpi
+tests/fixtures/
+tests/out/
+frames/
+.DS_Store
+Thumbs.db

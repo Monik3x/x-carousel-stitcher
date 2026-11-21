@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>X Carousel Stitcher</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <img src="icons/icon.svg" alt="" class="logo">
+      <div>
+        <h1>X Carousel Stitcher</h1>
+        <p class="subtitle">Combine X carousel slides into one image</p>
+      </div>
+    </header>
+
+    <div id="perm-banner" class="banner hidden">
+      <span>Network permissions are required to fetch X carousel images.</span>
+      <button id="grant-perm-btn" type="button" class="btn btn-small">Grant Access</button>
+    </div>
+
+    <div class="field">
+      <label for="url-input">X Post URL or Status ID</label>
+      <input
+        id="url-input"
+        type="text"
+        placeholder="https://x.com/user/status/..."
+        autocomplete="off"
+        spellcheck="false"
+      >
+    </div>
+
+    <div class="row two-col">
+      <div class="field">
+        <label for="direction-select">Layout</label>
+        <select id="direction-select">
+          <option value="horizontal">Horizontal Panorama</option>
+          <option value="vertical">Vertical Strip</option>
+          <option value="grid">Grid</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="format-select">Format</label>
+        <select id="format-select">
+          <option value="png">PNG (Lossless)</option>
+          <option value="jpeg">JPEG (Smaller)</option>
+          <option value="webp">WebP</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row two-col">
+      <div class="field" id="cols-field">
+        <label for="cols-input">Grid Columns</label>
+        <input id="cols-input" type="number" min="1" max="30" value="6">
+      </div>
+
+      <div class="field">
+        <label for="max-width-select">Max Width</label>
+        <select id="max-width-select">
+          <option value="0">Full Resolution</option>
+          <option value="16384">16,384 px</option>
+          <option value="8192">8,192 px</option>
+          <option value="4096">4,096 px</option>
+          <option value="2048">2,048 px</option>
+        </select>
+      </div>
+    </div>
+
+    <details class="advanced">
+      <summary>More options</summary>
+      <div class="advanced-body">
+        <div class="row two-col">
+          <div class="field">
+            <label for="gap-input">Gap (px)</label>
+            <input id="gap-input" type="number" min="0" max="200" value="0">
+          </div>
+          <div class="field">
+            <label for="overlap-input">Trim overlap (px)</label>
+            <input id="overlap-input" type="number" min="0" max="400" value="0">
+          </div>
+        </div>
+
+        <label class="checkbox">
+          <input id="reverse-check" type="checkbox">
+          <span>Reverse order (right-to-left)</span>
+        </label>
+
+        <div class="field">
+          <label for="inline-action-select">Inline X button click action</label>
+          <select id="inline-action-select">
+            <option value="viewer">Open Interactive Viewer</option>
+            <option value="download">Download Directly</option>
+          </select>
+        </div>
+      </div>
+    </details>
+
+    <div class="actions">
+      <button id="download-btn" type="button" class="btn btn-primary">Stitch &amp; Download</button>
+      <button id="viewer-btn" type="button" class="btn btn-secondary">Open Viewer</button>
+    </div>
+
+    <div id="status" class="status hidden" role="status" aria-live="polite">
+      <div class="progress-track hidden" id="progress-track">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <div id="status-text" class="status-text"></div>
+    </div>
+  </div>
+
+  <script src="lib/stitcher.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

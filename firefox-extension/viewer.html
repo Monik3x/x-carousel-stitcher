@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>X Carousel Stitcher — Viewer</title>
+  <link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+  <header class="toolbar">
+    <div class="toolbar-row top-row">
+      <div class="brand">
+        <img src="icons/icon.svg" alt="" class="logo">
+        <span>X Carousel Stitcher</span>
+      </div>
+
+      <div class="url-group">
+        <input
+          id="url-input"
+          type="text"
+          placeholder="Paste X post URL or status ID"
+          autocomplete="off"
+          spellcheck="false"
+        >
+        <button id="load-btn" type="button" class="btn btn-primary">Load</button>
+      </div>
+
+      <div class="action-group">
+        <button id="copy-btn" type="button" class="btn btn-secondary" disabled>Copy PNG</button>
+        <button id="download-btn" type="button" class="btn btn-primary" disabled>Download</button>
+      </div>
+    </div>
+
+    <div class="toolbar-row controls-row">
+      <label class="ctrl">
+        <span>Layout</span>
+        <select id="direction-select">
+          <option value="horizontal">Horizontal</option>
+          <option value="vertical">Vertical</option>
+          <option value="grid">Grid</option>
+        </select>
+      </label>
+
+      <label class="ctrl hidden" id="cols-ctrl">
+        <span>Cols</span>
+        <input id="cols-input" type="number" min="1" max="30" value="6">
+      </label>
+
+      <label class="ctrl">
+        <span>Format</span>
+        <select id="format-select">
+          <option value="png">PNG</option>
+          <option value="jpeg">JPEG</option>
+          <option value="webp">WebP</option>
+        </select>
+      </label>
+
+      <label class="ctrl">
+        <span>Max Width</span>
+        <select id="max-width-select">
+          <option value="0">Original</option>
+          <option value="16384">16,384 px</option>
+          <option value="8192">8,192 px</option>
+          <option value="4096">4,096 px</option>
+          <option value="2048">2,048 px</option>
+        </select>
+      </label>
+
+      <label class="ctrl">
+        <span>Gap</span>
+        <input id="gap-input" type="number" min="0" max="200" value="0">
+      </label>
+
+      <label class="ctrl">
+        <span>Overlap</span>
+        <input id="overlap-input" type="number" min="0" max="400" value="0">
+      </label>
+
+      <label class="ctrl check-ctrl">
+        <input id="reverse-check" type="checkbox">
+        <span>Reverse</span>
+      </label>
+
+      <div class="spacer"></div>
+
+      <div class="zoom-group">
+        <button id="fit-height-btn" type="button" class="btn btn-ghost" title="Fit height (great for panning wide panoramas)">Fit H</button>
+        <button id="fit-width-btn" type="button" class="btn btn-ghost" title="Fit entire width in view">Fit W</button>
+        <button id="zoom-out-btn" type="button" class="btn btn-ghost" title="Zoom out">&minus;</button>
+        <span id="zoom-label" class="zoom-label">Fit</span>
+        <button id="zoom-in-btn" type="button" class="btn btn-ghost" title="Zoom in">+</button>
+        <button id="zoom-100-btn" type="button" class="btn btn-ghost" title="Actual pixels (100%)">100%</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="perm-banner" class="banner hidden">
+    <span>Network access to FxTwitter / VxTwitter / pbs.twimg.com is needed to load carousel images.</span>
+    <button id="grant-perm-btn" type="button" class="btn btn-warn">Grant Access</button>
+  </div>
+
+  <main id="viewport" class="viewport">
+    <div id="empty-state" class="overlay-card">
+      <h2>Paste an X carousel link above to stitch it</h2>
+      <p>Works with multi-image posts and 4+ slide X carousels at full original resolution.</p>
+    </div>
+
+    <div id="loading-state" class="overlay-card hidden">
+      <div class="spinner"></div>
+      <div id="loading-text" class="loading-text">Loading...</div>
+      <div class="progress-track">
+        <div id="progress-bar" class="progress-bar"></div>
+      </div>
+    </div>
+
+    <div id="error-state" class="overlay-card error-card hidden">
+      <h3>Could not stitch carousel</h3>
+      <p id="error-text"></p>
+    </div>
+
+    <div id="stage" class="stage hidden">
+      <img id="preview-img" alt="Stitched X carousel">
+    </div>
+  </main>
+
+  <footer class="statusbar">
+    <div id="meta-info" class="meta-info">Ready</div>
+    <div class="meta-right">
+      <span id="toast" class="toast"></span>
+      <a id="source-link" class="source-link hidden" href="#" target="_blank" rel="noopener noreferrer">Open original post &nearr;</a>
+    </div>
+  </footer>
+
+  <script src="lib/stitcher.js"></script>
+  <script src="viewer.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Cross stitch">
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="#192124"/>
+  <path fill="#edf1df" d="M22 32h34v64H22q-6 0-6-6V38q0-6 6-6Zm50 0h34q6 0 6 6v52q0 6-6 6H72Z"/>
+  <path d="m44 49 40 30m-40 0 40-30" fill="none" stroke="#192124" stroke-width="20"/>
+  <path d="m44 49 40 30m-40 0 40-30" fill="none" stroke="#ff7945" stroke-width="10"/>
+</svg>
