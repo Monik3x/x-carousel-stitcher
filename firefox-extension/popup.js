@@ -20,7 +20,9 @@
     gap: document.getElementById("gap-input"),
     overlap: document.getElementById("overlap-input"),
     reverse: document.getElementById("reverse-check"),
+    compactButton: document.getElementById("compact-btn-check"),
     inlineAction: document.getElementById("inline-action-select"),
+    buttonPosition: document.getElementById("button-position-select"),
     downloadBtn: document.getElementById("download-btn"),
     viewerBtn: document.getElementById("viewer-btn"),
     status: document.getElementById("status"),
@@ -43,7 +45,9 @@
       gap: Math.max(0, Number(els.gap.value) || 0),
       overlap: Math.max(0, Number(els.overlap.value) || 0),
       reverse: Boolean(els.reverse.checked),
-      inlineAction: els.inlineAction.value
+      compactButton: Boolean(els.compactButton.checked),
+      inlineAction: els.inlineAction.value,
+      buttonPosition: els.buttonPosition.value
     };
   }
 
@@ -55,7 +59,9 @@
     els.gap.value = String(opts.gap || 0);
     els.overlap.value = String(opts.overlap || 0);
     els.reverse.checked = Boolean(opts.reverse);
+    els.compactButton.checked = Boolean(opts.compactButton);
     els.inlineAction.value = opts.inlineAction || "viewer";
+    els.buttonPosition.value = opts.buttonPosition || "bookmark";
     updateFieldVisibility();
   }
 
@@ -105,7 +111,9 @@
     els.gap,
     els.overlap,
     els.reverse,
-    els.inlineAction
+    els.compactButton,
+    els.inlineAction,
+    els.buttonPosition
   ]) {
     el.addEventListener("change", persistFormOptions);
   }

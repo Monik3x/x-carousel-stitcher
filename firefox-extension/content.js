@@ -4,10 +4,12 @@
   const BUTTON_CLASS = "xcs-stitch-btn";
   const WRAPPER_CLASS = "xcs-stitch-wrap";
   const DATE_ROW_CLASS = "xcs-date-row";
+  const COMPACT_ROOT_CLASS = "xcs-compact";
   const STATUS_LINK_RE = /\/status\/(\d{10,25})(?:\/|$|\?)/;
   const PHOTO_LINK_RE = /\/status\/\d+\/photo\/(\d+)/;
   const VIDEO_LINK_RE = /\/status\/\d+\/video\/\d+/;
   const activeButtons = new Map();
+  let buttonPosition = "bookmark";
 
   function injectStyles() {
     if (document.getElementById("xcs-styles")) return;
@@ -29,6 +31,9 @@
         padding-left: 12px;
       }
       .${WRAPPER_CLASS}.xcs-in-header {
+        margin-right: 4px;
+      }
+      .${WRAPPER_CLASS}.xcs-in-action-bar {
         margin-right: 4px;
       }
       .${BUTTON_CLASS} {
@@ -76,6 +81,26 @@
         height: 15px;
         flex-shrink: 0;
         fill: currentColor;
+      }
+      .${COMPACT_ROOT_CLASS} .${WRAPPER_CLASS}.xcs-in-header,
+      .${COMPACT_ROOT_CLASS} .${WRAPPER_CLASS}.xcs-in-action-bar {
+        margin-right: 0;
+      }
+      .${COMPACT_ROOT_CLASS} .${BUTTON_CLASS},
+      .${COMPACT_ROOT_CLASS} .${WRAPPER_CLASS}.xcs-in-header .${BUTTON_CLASS},
+      .${COMPACT_ROOT_CLASS} .${WRAPPER_CLASS}.xcs-in-action-bar .${BUTTON_CLASS} {
+        border: none;
+        padding: 7px;
+        min-width: 34px;
+        min-height: 34px;
+        justify-content: center;
+      }
+      .${COMPACT_ROOT_CLASS} .${BUTTON_CLASS} svg {
+        width: 19px;
+        height: 19px;
+      }
+      .${COMPACT_ROOT_CLASS} .${BUTTON_CLASS}:not([data-state]) span {
+        display: none;
       }
     `;
     (document.head || document.documentElement).appendChild(style);
@@ -207,6 +232,7 @@
     btn.type = "button";
     btn.className = BUTTON_CLASS;
     btn.dataset.tweetId = tweetId;
+    btn.setAttribute("aria-label", "Stitch carousel into one image");
     btn.title = "Stitch carousel into one image (Shift+Click to download directly)";
 
     const icon = createIconSvg();
@@ -324,13 +350,156 @@
     return target;
   }
 
-  function enhanceArticle(article) {
+  function rectsOverlap(a, b, pad = 2) {
+    if (!a || !b || a.width <= 0 || a.height <= 0 || b.width <= 0 || b.height <= 0) {
+      return false;
+    }
+    return (
+      a.left < b.right + pad &&
+      a.right + pad > b.left &&
+      a.top < b.bottom &&
+      a.bottom > b.top
+    );
+  }
+
+  function headerButtonOverlaps(article, wrapper, headerRight, quotedContainers) {
+    if (typeof wrapper.getBoundingClientRect !== "function") return false;
+    const wrapRect = wrapper.getBoundingClientRect();
+    if (!wrapRect || (wrapRect.width === 0 && wrapRect.height === 0)) return false;
+
+    if (typeof article.getBoundingClientRect === "function") {
+      const articleRect = article.getBoundingClientRect();
+      if (articleRect.width > 0 && wrapRect.right > articleRect.right + 1) {
+        return true;
+      }
+    }
+
+    const mainTime = findMainTimeElement(article, quotedContainers);
+    if (mainTime && typeof mainTime.getBoundingClientRect === "function") {
+      if (rectsOverlap(wrapRect, mainTime.getBoundingClientRect())) {
+        return true;
+      }
+    }
+
+    const userNames = article.querySelectorAll('[data-testid="User-Name"]');
+    for (const un of userNames) {
+      if (isInsideAny(un, quotedContainers)) continue;
+      if (typeof un.getBoundingClientRect === "function") {
+        if (rectsOverlap(wrapRect, un.getBoundingClientRect())) {
+          return true;
+        }
+      }
+      break;
+    }
+
+    // Check siblings of headerRight (e.g. badges injected by third-party extensions) and siblings inside headerRight
+    const headerRow = headerRight && headerRight.parentElement;
+    if (headerRow) {
+      for (const sib of headerRow.children) {
+        if (sib === headerRight || typeof sib.getBoundingClientRect !== "function") continue;
+        if (rectsOverlap(wrapRect, sib.getBoundingClientRect())) {
+          return true;
+        }
+      }
+    }
+    if (headerRight) {
+      for (const sib of headerRight.children) {
+        if (sib === wrapper || typeof sib.getBoundingClientRect !== "function") continue;
+        if (rectsOverlap(wrapRect, sib.getBoundingClientRect(), 0)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  function placeInActionBar(article, wrapper, quotedContainers) {
+    const groups = Array.from(article.querySelectorAll('div[role="group"]')).filter(
+      (g) => !isInsideAny(g, quotedContainers)
+    );
+    const actionBar = groups.length > 0 ? groups[groups.length - 1] : null;
+    if (!actionBar) return false;
+
+    wrapper.classList.remove("xcs-in-header", "xcs-in-date-row");
+    wrapper.classList.add("xcs-in-action-bar");
+
+    const bookmarkBtn = actionBar.querySelector(
+      '[data-testid="bookmark"], [data-testid="removeBookmark"]'
+    );
+    if (bookmarkBtn) {
+      let slot = bookmarkBtn;
+      while (slot.parentElement && slot.parentElement !== actionBar) {
+        slot = slot.parentElement;
+      }
+      const cs = getComputedStyle(slot);
+      if (slot.children.length >= 2 && cs.display.includes("flex") && cs.flexDirection === "row") {
+        let bmChild = bookmarkBtn;
+        while (bmChild.parentElement && bmChild.parentElement !== slot) {
+          bmChild = bmChild.parentElement;
+        }
+        slot.insertBefore(wrapper, bmChild);
+      } else {
+        actionBar.insertBefore(wrapper, slot);
+      }
+      return true;
+    }
+
+    actionBar.appendChild(wrapper);
+    return true;
+  }
+
+  function placeTimelineButton(article, wrapper, quotedContainers) {
+    if (buttonPosition === "header-auto") {
+      const headerRight = findHeaderRightTarget(article, quotedContainers);
+      if (headerRight) {
+        wrapper.classList.remove("xcs-in-action-bar", "xcs-in-date-row");
+        wrapper.classList.add("xcs-in-header");
+        if (wrapper.parentElement !== headerRight) {
+          headerRight.insertBefore(wrapper, headerRight.firstChild);
+        }
+        if (headerButtonOverlaps(article, wrapper, headerRight, quotedContainers)) {
+          placeInActionBar(article, wrapper, quotedContainers);
+        }
+        return;
+      }
+    }
+
+    if (placeInActionBar(article, wrapper, quotedContainers)) return;
+
+    const headerRight = findHeaderRightTarget(article, quotedContainers);
+    if (headerRight) {
+      wrapper.classList.remove("xcs-in-action-bar", "xcs-in-date-row");
+      wrapper.classList.add("xcs-in-header");
+      headerRight.insertBefore(wrapper, headerRight.firstChild);
+    }
+  }
+
+  function enhanceArticle(article, repositionExisting = false) {
     const quotedContainers = getQuotedContainers(article);
     const tweetId = findTweetStatusId(article, quotedContainers);
 
     const existingBtn = article.querySelector(`.${BUTTON_CLASS}`);
     if (existingBtn) {
-      if (existingBtn.dataset.tweetId === tweetId) return;
+      if (existingBtn.dataset.tweetId === tweetId) {
+        const existingWrap = existingBtn.closest(`.${WRAPPER_CLASS}`);
+        if (existingWrap && !existingWrap.classList.contains("xcs-in-date-row")) {
+          if (buttonPosition === "bookmark" && existingWrap.classList.contains("xcs-in-header")) {
+            placeInActionBar(article, existingWrap, quotedContainers);
+          } else if (buttonPosition === "header-auto") {
+            if (existingWrap.classList.contains("xcs-in-header")) {
+              if (
+                headerButtonOverlaps(article, existingWrap, existingWrap.parentElement, quotedContainers)
+              ) {
+                placeInActionBar(article, existingWrap, quotedContainers);
+              }
+            } else if (repositionExisting && existingWrap.classList.contains("xcs-in-action-bar")) {
+              placeTimelineButton(article, existingWrap, quotedContainers);
+            }
+          }
+        }
+        return;
+      }
       // Article node was recycled by X for a different tweet; remove stale button
       const staleWrap = existingBtn.closest(`.${WRAPPER_CLASS}`);
       if (staleWrap) staleWrap.remove();
@@ -351,24 +520,13 @@
       return;
     }
 
-    const headerRight = findHeaderRightTarget(article, quotedContainers);
-    if (headerRight) {
-      wrapper.classList.add("xcs-in-header");
-      headerRight.insertBefore(wrapper, headerRight.firstChild);
-      return;
-    }
-
-    const groups = article.querySelectorAll('div[role="group"]');
-    const actionBar = groups.length > 0 ? groups[groups.length - 1] : null;
-    if (actionBar) {
-      actionBar.appendChild(wrapper);
-    }
+    placeTimelineButton(article, wrapper, quotedContainers);
   }
 
-  function scanTweets() {
+  function scanTweets(repositionExisting = false) {
     const articles = document.querySelectorAll('article[data-testid="tweet"]');
     for (const article of articles) {
-      enhanceArticle(article);
+      enhanceArticle(article, repositionExisting);
     }
   }
 
@@ -385,21 +543,52 @@
     }
   });
 
-  injectStyles();
-  scanTweets();
+  function applyUiOptions(opts) {
+    const root = document.documentElement;
+    if (root && root.classList) {
+      root.classList.toggle(COMPACT_ROOT_CLASS, Boolean(opts && opts.compactButton));
+    }
+    buttonPosition =
+      opts && opts.buttonPosition === "header-auto" ? "header-auto" : "bookmark";
+    scheduleScan(true);
+  }
 
   let scheduled = false;
-  const observer = new MutationObserver(() => {
+  let pendingReposition = false;
+  function scheduleScan(repositionExisting = false) {
+    if (repositionExisting === true) pendingReposition = true;
     if (scheduled) return;
     scheduled = true;
     requestAnimationFrame(() => {
+      const reposition = pendingReposition;
+      pendingReposition = false;
       try {
-        scanTweets();
+        scanTweets(reposition);
       } finally {
         scheduled = false;
       }
     });
-  });
+  }
+
+  if (browser.storage && browser.storage.local) {
+    browser.storage.local
+      .get("options")
+      .then((saved) => applyUiOptions(saved && saved.options))
+      .catch(() => {});
+
+    if (browser.storage.onChanged) {
+      browser.storage.onChanged.addListener((changes, area) => {
+        if (area === "local" && changes.options && changes.options.newValue) {
+          applyUiOptions(changes.options.newValue);
+        }
+      });
+    }
+  }
+
+  injectStyles();
+  scanTweets();
+
+  const observer = new MutationObserver(scheduleScan);
 
   observer.observe(document.body || document.documentElement, {
     childList: true,
@@ -407,4 +596,8 @@
     attributes: true,
     attributeFilter: ["href"]
   });
+
+  if (typeof window !== "undefined" && window.addEventListener) {
+    window.addEventListener("resize", scheduleScan);
+  }
 })();

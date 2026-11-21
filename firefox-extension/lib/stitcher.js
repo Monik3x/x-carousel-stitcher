@@ -19,7 +19,9 @@
     reverse: false,
     normalize: true,
     bg: "#ffffff",
-    inlineAction: "viewer"
+    inlineAction: "viewer",
+    compactButton: false,
+    buttonPosition: "bookmark"
   };
 
   function extractTweetId(input) {

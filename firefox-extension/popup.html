@@ -88,11 +88,24 @@
           <span>Reverse order (right-to-left)</span>
         </label>
 
+        <label class="checkbox">
+          <input id="compact-btn-check" type="checkbox">
+          <span>Simplified icon-only button on X</span>
+        </label>
+
         <div class="field">
           <label for="inline-action-select">Inline X button click action</label>
           <select id="inline-action-select">
             <option value="viewer">Open Interactive Viewer</option>
             <option value="download">Download Directly</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="button-position-select">Timeline button position</label>
+          <select id="button-position-select">
+            <option value="bookmark">Next to Bookmark (Default)</option>
+            <option value="header-auto">Top-right header (move on overlap)</option>
           </select>
         </div>
       </div>

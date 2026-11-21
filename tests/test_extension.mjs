@@ -408,12 +408,19 @@ class MockElement {
     this.children = [];
     this.parentElement = null;
     this.style = {};
+    this._rect = null;
     this._computedStyle = { display: "flex", flexDirection: "column", ...styles };
     this._classes = new Set((attrs.class || "").split(/\s+/).filter(Boolean));
     this.classList = {
       add: (...cls) => cls.forEach((c) => this._classes.add(c)),
       remove: (...cls) => cls.forEach((c) => this._classes.delete(c)),
-      contains: (c) => this._classes.has(c)
+      contains: (c) => this._classes.has(c),
+      toggle: (c, force) => {
+        const enable = force === undefined ? !this._classes.has(c) : Boolean(force);
+        if (enable) this._classes.add(c);
+        else this._classes.delete(c);
+        return enable;
+      }
     };
     this.textContent = "";
     this.listeners = {};
@@ -424,12 +431,23 @@ class MockElement {
   set id(v) { this.attrs.id = v; }
   get firstChild() { return this.children[0] || null; }
   get isConnected() { return Boolean(this.parentElement); }
+  getBoundingClientRect() {
+    if (typeof this._rect === "function") return this._rect();
+    return this._rect || { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 };
+  }
   getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }
   setAttribute(k, v) {
     this.attrs[k] = String(v);
     if (MockElement._onMutation) MockElement._onMutation({ type: "attributes", attributeName: k, target: this });
   }
+  _detachFromParent(child) {
+    if (!child.parentElement) return;
+    const prev = child.parentElement;
+    const idx = prev.children.indexOf(child);
+    if (idx !== -1) prev.children.splice(idx, 1);
+  }
   appendChild(child) {
+    this._detachFromParent(child);
     child.parentElement = this;
     this.children.push(child);
     if (MockElement._onMutation) MockElement._onMutation({ type: "childList", target: this });
@@ -444,6 +462,7 @@ class MockElement {
     if (MockElement._onMutation) MockElement._onMutation({ type: "childList", target: parent });
   }
   insertBefore(child, ref) {
+    this._detachFromParent(child);
     child.parentElement = this;
     const idx = ref ? this.children.indexOf(ref) : -1;
     if (idx === -1) this.children.push(child);
@@ -581,13 +600,21 @@ function buildTimelineArticle({ id = "1234567890123456789", photoCount = 4 }) {
       el("div", { "data-testid": "tweetPhoto" })
     ])
   );
+  const bookmarkCluster = el("div", { class: "bm-share" }, { display: "flex", flexDirection: "row" }, [
+    el("div", {}, {}, [el("button", { "data-testid": "bookmark" })]),
+    el("div", {}, {}, [el("button", { "aria-label": "Share post" })])
+  ]);
+  const actionBar = el("div", { role: "group" }, { display: "flex", flexDirection: "row" }, [
+    bookmarkCluster
+  ]);
   return {
     article: el("article", { "data-testid": "tweet" }, {}, [
       headerRow,
       el("div", { class: "media-wrap" }, {}, media),
-      el("div", { role: "group" }, { display: "flex", flexDirection: "row" })
+      actionBar
     ]),
-    headerRight
+    headerRight,
+    bookmarkCluster
   };
 }
 
@@ -613,6 +640,7 @@ test("content.js injects Stitch only on multi-image posts, in date/views row or 
   let observerCallback = null;
   let observerConfig = null;
   let observerTarget = null;
+  let storageChangeListener = null;
   const sentMessages = [];
 
   MockElement._onMutation = (record) => {
@@ -650,6 +678,14 @@ test("content.js injects Stitch only on multi-image posts, in date/views row or 
     requestAnimationFrame: (fn) => fn(),
     setTimeout: () => 0,
     browser: {
+      storage: {
+        local: {
+          get: async () => ({ options: { compactButton: false } })
+        },
+        onChanged: {
+          addListener: (fn) => { storageChangeListener = fn; }
+        }
+      },
       runtime: {
         onMessage: { addListener() {} },
         sendMessage: async (msg) => {
@@ -667,7 +703,10 @@ test("content.js injects Stitch only on multi-image posts, in date/views row or 
     const postBtn = cases.postMulti.dateRow.querySelector(".xcs-stitch-btn");
     assert(postBtn, "4-photo post must place Stitch button in date/views row");
     assert(cases.postCarouselNarrow.dateRow.querySelector(".xcs-stitch-btn"));
-    assert(cases.timelineFourPhotos.headerRight.querySelector(".xcs-stitch-btn"));
+    assert(
+      cases.timelineFourPhotos.bookmarkCluster.querySelector(".xcs-stitch-btn"),
+      "Default timeline position must place Stitch button next to Bookmark"
+    );
 
     for (const key of [
       "postSinglePhoto",
@@ -686,6 +725,10 @@ test("content.js injects Stitch only on multi-image posts, in date/views row or 
       cases.postSinglePhoto.dateRow.querySelector(".xcs-stitch-btn"),
       "1-photo carousel must gain Stitch button when nav arrow arrives later"
     );
+
+    // Switch timeline placement to header-auto and verify late caret + re-render restoration
+    storageChangeListener({ options: { newValue: { compactButton: false, buttonPosition: "header-auto" } } }, "local");
+    assert(cases.timelineFourPhotos.headerRight.querySelector(".xcs-stitch-btn"));
 
     const lateHeaderRight = el("div", { class: "header-right" }, { display: "flex", flexDirection: "row" });
     const lateTimeline = el("article", { "data-testid": "tweet" }, {}, [
@@ -736,6 +779,62 @@ test("content.js injects Stitch only on multi-image posts, in date/views row or 
     delete refreshedBtn.dataset.state;
     await refreshedBtn.trigger("click", { shiftKey: true });
     assert.equal(sentMessages[1].forceMode, "download");
+
+    assert.equal(document.documentElement.classList.contains("xcs-compact"), false);
+    storageChangeListener({ options: { newValue: { compactButton: true, buttonPosition: "header-auto" } } }, "local");
+    assert.equal(document.documentElement.classList.contains("xcs-compact"), true);
+    storageChangeListener({ options: { newValue: { compactButton: false, buttonPosition: "header-auto" } } }, "local");
+    assert.equal(document.documentElement.classList.contains("xcs-compact"), false);
+
+    // When header overlaps timestamp/badge (e.g. long name or third-party badge), button moves next to Bookmark
+    const crowdedBookmarkWrap = el("div", {}, {}, [el("button", { "data-testid": "bookmark" })]);
+    const crowdedShareWrap = el("div", {}, {}, [el("button", { "aria-label": "Share post" })]);
+    const crowdedRightCluster = el("div", { class: "bm-share" }, { display: "flex", flexDirection: "row" }, [
+      crowdedBookmarkWrap,
+      crowdedShareWrap
+    ]);
+    const crowdedActionBar = el("div", { role: "group" }, { display: "flex", flexDirection: "row" }, [
+      crowdedRightCluster
+    ]);
+    const crowdedTime = el("time");
+    let timeRight = 320;
+    crowdedTime._rect = () => ({ left: 260, right: timeRight, top: 10, bottom: 26, width: timeRight - 260, height: 16 });
+    const crowdedUserName = el("div", { "data-testid": "User-Name" }, {}, [
+      el("a", { href: "/testuser/status/1000000000011" }, {}, [crowdedTime])
+    ]);
+    crowdedUserName._rect = () => ({ left: 60, right: timeRight, top: 10, bottom: 26, width: timeRight - 60, height: 16 });
+    const crowdedHeaderRight = el("div", { class: "header-right" }, { display: "flex", flexDirection: "row" }, [
+      el("button", { "data-testid": "caret" })
+    ]);
+    const origInsert = crowdedHeaderRight.insertBefore.bind(crowdedHeaderRight);
+    crowdedHeaderRight.insertBefore = (child, ref) => {
+      child._rect = () => ({ left: 420, right: 490, top: 6, bottom: 30, width: 70, height: 24 });
+      return origInsert(child, ref);
+    };
+    const crowdedArticle = el("article", { "data-testid": "tweet" }, {}, [
+      el("div", { class: "header-row" }, { display: "flex", flexDirection: "row" }, [
+        crowdedUserName,
+        crowdedHeaderRight
+      ]),
+      el("div", { class: "media-wrap" }, {}, Array.from({ length: 2 }, (_, i) =>
+        el("a", { href: `/testuser/status/1000000000011/photo/${i + 1}` }, {}, [
+          el("div", { "data-testid": "tweetPhoto" })
+        ])
+      )),
+      crowdedActionBar
+    ]);
+    crowdedArticle._rect = () => ({ left: 0, right: 600, top: 0, bottom: 400, width: 600, height: 400 });
+
+    // Initially no overlap -> stays in headerRight
+    body.appendChild(crowdedArticle);
+    assert(crowdedHeaderRight.querySelector(".xcs-stitch-btn"), "Unobstructed button stays in header");
+
+    // Third-party extension injects a badge pushing timestamp onto Stitch -> relocates next to Bookmark
+    timeRight = 445;
+    crowdedUserName.appendChild(el("span", { class: "third-party-badge" }));
+    assert.equal(crowdedHeaderRight.querySelector(".xcs-stitch-btn"), null, "Overlapping button leaves header");
+    assert(crowdedRightCluster.querySelector(".xcs-stitch-btn"), "Relocated button sits next to Bookmark/Share");
+    assert.equal(crowdedRightCluster.children[0].querySelector(".xcs-stitch-btn") !== null, true);
   } finally {
     MockElement._onMutation = null;
   }
