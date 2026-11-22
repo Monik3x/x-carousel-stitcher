@@ -12,11 +12,11 @@
     permBanner: document.getElementById("perm-banner"),
     grantPermBtn: document.getElementById("grant-perm-btn"),
     urlInput: document.getElementById("url-input"),
+    sourceForm: document.getElementById("source-form"),
     loadBtn: document.getElementById("load-btn"),
     copyBtn: document.getElementById("copy-btn"),
     downloadBtn: document.getElementById("download-btn"),
     direction: document.getElementById("direction-select"),
-    colsCtrl: document.getElementById("cols-ctrl"),
     cols: document.getElementById("cols-input"),
     format: document.getElementById("format-select"),
     maxWidth: document.getElementById("max-width-select"),
@@ -68,6 +68,9 @@
   }
 
   function showView(which) {
+    document.body.dataset.view = which;
+    const sourceSlot = document.getElementById(which === "empty" ? "empty-source" : "toolbar-source");
+    if (els.sourceForm.parentElement !== sourceSlot) sourceSlot.append(els.sourceForm);
     els.emptyState.classList.toggle("hidden", which !== "empty");
     els.loadingState.classList.toggle("hidden", which !== "loading");
     els.errorState.classList.toggle("hidden", which !== "error");
@@ -95,7 +98,7 @@
     els.gap.value = String(opts.gap || 0);
     els.overlap.value = String(opts.overlap || 0);
     els.reverse.checked = Boolean(opts.reverse);
-    els.colsCtrl.classList.toggle("hidden", els.direction.value !== "grid");
+    globalThis.updateStitchLayoutFields(els.direction.value);
   }
 
   function setPreviewScale(zoom) {
@@ -108,6 +111,9 @@
 
   function applyZoom() {
     if (!state.currentWidth || !state.currentHeight) return;
+    els.fitWidthBtn.setAttribute("aria-pressed", state.zoomMode === "fit-width");
+    els.fitHeightBtn.setAttribute("aria-pressed", state.zoomMode === "fit-height");
+    els.zoom100Btn.setAttribute("aria-pressed", state.zoomMode === "manual" && state.zoom === 1);
 
     const pad = 48;
     const fullW = Math.max(100, els.viewport.offsetWidth - pad);
@@ -215,24 +221,36 @@
   }
 
   async function loadCarousel(input) {
-    const seq = ++state.loadSeq;
-    clearTimeout(restitchTimer);
-    state.renderSeq++;
-    clearLoadedState();
-
     let tweetId;
     try {
       tweetId = Stitcher.extractTweetId(input);
     } catch (err) {
-      els.errorText.textContent = err.message;
-      showView("error");
+      els.urlInput.setCustomValidity(err.message);
+      els.urlInput.reportValidity();
       return;
     }
 
-    const hasPerms = await checkPermissions();
+    const seq = ++state.loadSeq;
+    clearTimeout(restitchTimer);
+    state.renderSeq++;
+    clearLoadedState();
+    els.loadBtn.disabled = true;
+    let hasPerms;
+    try {
+      hasPerms = await checkPermissions();
+    } catch {
+      if (seq !== state.loadSeq) return;
+      els.errorText.textContent = "Couldn't check site access. Try loading the post again.";
+      showView("error");
+      els.metaInfo.textContent = "Site access unavailable";
+      els.loadBtn.disabled = !els.urlInput.value.trim();
+      return;
+    }
     if (seq !== state.loadSeq) return;
     if (!hasPerms) {
-      els.errorText.textContent = 'Please click "Grant Access" in the banner above, then click Load.';
+      els.errorText.textContent = "Select Grant access to load the photos.";
+      els.metaInfo.textContent = "Waiting for access";
+      els.loadBtn.disabled = !els.urlInput.value.trim();
       showView("error");
       return;
     }
@@ -241,7 +259,6 @@
     nextUrl.searchParams.set("id", tweetId);
     history.replaceState(null, "", nextUrl.toString());
 
-    els.loadBtn.disabled = true;
     els.copyBtn.disabled = true;
     els.downloadBtn.disabled = true;
     showView("loading");
@@ -287,7 +304,7 @@
       els.metaInfo.textContent = "Failed to load carousel";
     } finally {
       if (seq === state.loadSeq) {
-        els.loadBtn.disabled = false;
+        els.loadBtn.disabled = !els.urlInput.value.trim();
       }
     }
   }
@@ -315,22 +332,23 @@
     }
   });
 
-  els.loadBtn.addEventListener("click", () => {
-    if (els.urlInput.value.trim()) {
-      loadCarousel(els.urlInput.value.trim());
-    }
+  els.sourceForm.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    if (!els.loadBtn.disabled) loadCarousel(els.urlInput.value.trim());
   });
 
-  els.urlInput.addEventListener("keydown", (ev) => {
-    if (ev.key === "Enter" && !els.loadBtn.disabled && els.urlInput.value.trim()) {
-      loadCarousel(els.urlInput.value.trim());
-    }
+  els.urlInput.addEventListener("input", () => {
+    els.urlInput.setCustomValidity("");
+    els.loadBtn.disabled = document.body.dataset.view === "loading" || !els.urlInput.value.trim();
   });
 
   function scheduleRestitch() {
-    els.colsCtrl.classList.toggle("hidden", els.direction.value !== "grid");
+    globalThis.updateStitchLayoutFields(els.direction.value);
     Stitcher.saveOptions(readOptions()).catch(() => {});
     if (!state.bitmaps.length) return;
+    state.renderSeq++;
+    els.copyBtn.disabled = true;
+    els.downloadBtn.disabled = true;
     clearTimeout(restitchTimer);
     restitchTimer = setTimeout(() => {
       renderStitched();
@@ -447,9 +465,9 @@
     applyZoom();
   });
 
-  window.addEventListener("resize", () => {
+  new ResizeObserver(() => {
     if (state.zoomMode !== "manual") applyZoom();
-  });
+  }).observe(els.viewport);
 
   let dragging = false;
   let dragStartX = 0;

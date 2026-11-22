@@ -1,130 +1,171 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>X Carousel Stitcher</title>
-  <link rel="stylesheet" href="popup.css">
-</head>
-<body>
-  <div class="app">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>X Carousel Stitcher</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
     <header class="header">
-      <img src="icons/icon.svg" alt="" class="logo">
+      <img src="icons/icon.svg" alt="" width="42" height="42" />
       <div>
         <h1>X Carousel Stitcher</h1>
-        <p class="subtitle">Combine X carousel slides into one image</p>
+        <p>Join photos from an X post into one image.</p>
       </div>
     </header>
-
-    <div id="perm-banner" class="banner hidden">
-      <span>Network permissions are required to fetch X carousel images.</span>
-      <button id="grant-perm-btn" type="button" class="btn btn-small">Grant Access</button>
-    </div>
-
-    <div class="field">
-      <label for="url-input">X Post URL or Status ID</label>
-      <input
-        id="url-input"
-        type="text"
-        placeholder="https://x.com/user/status/..."
-        autocomplete="off"
-        spellcheck="false"
-      >
-    </div>
-
-    <div class="row two-col">
-      <div class="field">
-        <label for="direction-select">Layout</label>
-        <select id="direction-select">
-          <option value="horizontal">Horizontal Panorama</option>
-          <option value="vertical">Vertical Strip</option>
-          <option value="grid">Grid</option>
-        </select>
+    <main inert>
+      <div id="perm-banner" class="banner hidden">
+        <span>Allow access to fetch carousel images.</span>
+        <button id="grant-perm-btn" type="button">Grant access</button>
       </div>
-
-      <div class="field">
-        <label for="format-select">Format</label>
-        <select id="format-select">
-          <option value="png">PNG (Lossless)</option>
-          <option value="jpeg">JPEG (Smaller)</option>
-          <option value="webp">WebP</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="row two-col">
-      <div class="field" id="cols-field">
-        <label for="cols-input">Grid Columns</label>
-        <input id="cols-input" type="number" min="1" max="30" value="6">
-      </div>
-
-      <div class="field">
-        <label for="max-width-select">Max Width</label>
-        <select id="max-width-select">
-          <option value="0">Full Resolution</option>
-          <option value="16384">16,384 px</option>
-          <option value="8192">8,192 px</option>
-          <option value="4096">4,096 px</option>
-          <option value="2048">2,048 px</option>
-        </select>
-      </div>
-    </div>
-
-    <details class="advanced">
-      <summary>More options</summary>
-      <div class="advanced-body">
-        <div class="row two-col">
-          <div class="field">
-            <label for="gap-input">Gap (px)</label>
-            <input id="gap-input" type="number" min="0" max="200" value="0">
-          </div>
-          <div class="field">
-            <label for="overlap-input">Trim overlap (px)</label>
-            <input id="overlap-input" type="number" min="0" max="400" value="0">
-          </div>
+      <div class="source">
+        <label for="url-input">Post link or ID</label>
+        <span id="source-hint"></span>
+        <div class="input-wrap">
+          <svg class="icon" aria-hidden="true"><use href="icons/tools.svg#link"></use></svg>
+          <input
+            id="url-input"
+            type="text"
+            placeholder="https://x.com/user/status/…"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button
+            type="button"
+            id="clear-source"
+            aria-label="Clear post link or ID"
+            title="Clear post link or ID"
+          >
+            ×
+          </button>
         </div>
-
-        <label class="checkbox">
-          <input id="reverse-check" type="checkbox">
-          <span>Reverse order (right-to-left)</span>
+      </div>
+      <fieldset class="layouts">
+        <legend>Layout</legend>
+        <div class="layout-choices">
+          <label>
+            <input type="radio" name="direction" value="horizontal" checked />
+            <span>
+              <svg class="icon" aria-hidden="true"><use href="icons/tools.svg#horizontal"></use></svg>
+              Horizontal
+            </span>
+          </label>
+          <label>
+            <input type="radio" name="direction" value="vertical" />
+            <span>
+              <svg class="icon" aria-hidden="true"><use href="icons/tools.svg#vertical"></use></svg>
+              Vertical
+            </span>
+          </label>
+          <label>
+            <input type="radio" name="direction" value="grid" />
+            <span>
+              <svg class="icon" aria-hidden="true"><use href="icons/tools.svg#grid"></use></svg>
+              Grid
+            </span>
+          </label>
+        </div>
+      </fieldset>
+      <div class="field hidden" id="cols-field">
+        <label for="cols-input">Grid columns</label>
+        <input id="cols-input" type="number" min="1" max="30" value="6" />
+      </div>
+      <div class="pair">
+        <label class="field">
+          File format
+          <select id="format-select">
+            <option value="png">PNG</option>
+            <option value="jpeg">JPEG</option>
+            <option value="webp">WebP</option>
+          </select>
         </label>
-
-        <label class="checkbox">
-          <input id="compact-btn-check" type="checkbox">
-          <span>Simplified icon-only button on X</span>
+        <label class="field">
+          Max width
+          <select id="max-width-select">
+            <option value="0">Original size</option>
+            <option value="16384">16,384 px</option>
+            <option value="8192">8,192 px</option>
+            <option value="4096">4,096 px</option>
+            <option value="2048">2,048 px</option>
+          </select>
         </label>
-
-        <div class="field">
-          <label for="inline-action-select">Inline X button click action</label>
+      </div>
+      <div class="actions">
+        <button id="download-btn" class="primary" type="button">
+          <svg class="icon" aria-hidden="true"><use href="icons/tools.svg#download"></use></svg>
+          Stitch &amp; download
+        </button>
+        <button id="viewer-btn" type="button">
+          <svg class="icon" aria-hidden="true"><use href="icons/tools.svg#viewer"></use></svg>
+          <span id="viewer-label">Open viewer</span>
+        </button>
+      </div>
+      <div id="status" class="status hidden" role="status" aria-live="polite">
+        <div class="progress-track hidden" id="progress-track"><div id="progress-bar"></div></div>
+        <div id="status-text"></div>
+      </div>
+      <details>
+        <summary>
+          <svg class="icon" aria-hidden="true"><use href="icons/tools.svg#settings"></use></svg>
+          <span>Stitch adjustments</span>
+          <svg class="icon" aria-hidden="true"><use href="icons/tools.svg#chevron"></use></svg>
+        </summary>
+        <div class="settings-body">
+          <div class="pair">
+            <label class="field">
+              Gap (px)
+              <input id="gap-input" type="number" min="0" max="200" value="0" />
+            </label>
+            <label class="field">
+              Trim overlap (px)
+              <input
+                id="overlap-input"
+                aria-describedby="trim-help"
+                type="number"
+                min="0"
+                max="400"
+                value="0"
+              />
+            </label>
+            <p id="trim-help"></p>
+          </div>
+          <label class="check">
+            <input id="reverse-check" type="checkbox" />
+            Reverse panel order
+          </label>
+        </div>
+      </details>
+    </main>
+    <details class="preferences" inert>
+      <summary>
+        <svg class="icon" aria-hidden="true"><use href="icons/tools.svg#switch"></use></svg>
+        <span>On-post button settings</span>
+        <svg class="icon" aria-hidden="true"><use href="icons/tools.svg#chevron"></use></svg>
+      </summary>
+      <div class="settings-body">
+        <label class="field">
+          On click
           <select id="inline-action-select">
-            <option value="viewer">Open Interactive Viewer</option>
-            <option value="download">Download Directly</option>
+            <option value="viewer">Open viewer</option>
+            <option value="download">Download image</option>
           </select>
-        </div>
-
-        <div class="field">
-          <label for="button-position-select">Timeline button position</label>
+        </label>
+        <label class="field">
+          Timeline position
           <select id="button-position-select">
-            <option value="bookmark">Next to Bookmark (Default)</option>
-            <option value="header-auto">Top-right header (move on overlap)</option>
+            <option value="bookmark">Next to bookmark</option>
+            <option value="header-auto">Top right, space permitting</option>
           </select>
-        </div>
+        </label>
+        <label class="check">
+          <input id="compact-btn-check" type="checkbox" />
+          Show icon only
+        </label>
       </div>
     </details>
-
-    <div class="actions">
-      <button id="download-btn" type="button" class="btn btn-primary">Stitch &amp; Download</button>
-      <button id="viewer-btn" type="button" class="btn btn-secondary">Open Viewer</button>
-    </div>
-
-    <div id="status" class="status hidden" role="status" aria-live="polite">
-      <div class="progress-track hidden" id="progress-track">
-        <div class="progress-bar" id="progress-bar"></div>
-      </div>
-      <div id="status-text" class="status-text"></div>
-    </div>
-  </div>
-
-  <script src="lib/stitcher.js"></script>
-  <script src="popup.js"></script>
-</body>
+    <script src="lib/stitcher.js"></script>
+    <script src="stitch-form.js"></script>
+    <script src="popup.js"></script>
+  </body>
 </html>

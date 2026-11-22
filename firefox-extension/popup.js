@@ -12,9 +12,9 @@
     permBanner: document.getElementById("perm-banner"),
     grantPermBtn: document.getElementById("grant-perm-btn"),
     urlInput: document.getElementById("url-input"),
-    direction: document.getElementById("direction-select"),
+    directions: document.querySelectorAll('[name="direction"]'),
+    sourceHint: document.getElementById("source-hint"),
     format: document.getElementById("format-select"),
-    colsField: document.getElementById("cols-field"),
     cols: document.getElementById("cols-input"),
     maxWidth: document.getElementById("max-width-select"),
     gap: document.getElementById("gap-input"),
@@ -32,13 +32,13 @@
   };
 
   function updateFieldVisibility() {
-    const isGrid = els.direction.value === "grid";
-    els.colsField.classList.toggle("hidden", !isGrid);
+    const direction = document.querySelector('[name="direction"]:checked').value;
+    globalThis.updateStitchLayoutFields(direction);
   }
 
   function readFormOptions() {
     return {
-      direction: els.direction.value,
+      direction: document.querySelector('[name="direction"]:checked').value,
       format: els.format.value,
       cols: Math.max(1, Number(els.cols.value) || 6),
       maxWidth: Math.max(0, Number(els.maxWidth.value) || 0),
@@ -52,7 +52,8 @@
   }
 
   function applyOptionsToForm(opts) {
-    els.direction.value = opts.direction || "horizontal";
+    const selected = Array.from(els.directions).find(el => el.value === opts.direction);
+    (selected || els.directions[0]).checked = true;
     els.format.value = opts.format || "png";
     els.cols.value = String(opts.cols || 6);
     els.maxWidth.value = String(opts.maxWidth || 0);
@@ -104,7 +105,7 @@
   }
 
   for (const el of [
-    els.direction,
+    ...els.directions,
     els.format,
     els.cols,
     els.maxWidth,
@@ -217,9 +218,22 @@
     }
   });
 
+  els.urlInput.addEventListener("input", () => {
+    document.getElementById("viewer-label").textContent = els.urlInput.value.trim() ? "Preview stitch" : "Open viewer";
+    els.sourceHint.textContent = "";
+    if (els.status.classList.contains("error")) els.status.classList.add("hidden");
+  });
+
   async function init() {
-    const opts = await Stitcher.loadOptions();
-    applyOptionsToForm(opts);
+    try {
+      applyOptionsToForm(await Stitcher.loadOptions());
+    } catch {
+      applyOptionsToForm(Stitcher.DEFAULT_OPTIONS);
+      setStatus("Couldn't read saved settings. Using defaults.", "error");
+    } finally {
+      document.querySelector("main").inert = false;
+      document.querySelector(".preferences").inert = false;
+    }
     await checkPermissions();
 
     try {
@@ -227,8 +241,13 @@
       const activeUrl = tabs && tabs[0] && tabs[0].url;
       if (activeUrl) {
         try {
-          Stitcher.extractTweetId(activeUrl);
-          els.urlInput.value = activeUrl;
+          const id = Stitcher.extractTweetId(activeUrl);
+          if (!els.urlInput.value) {
+            els.urlInput.value = id;
+            document.getElementById("viewer-label").textContent = "Preview stitch";
+            const author = new URL(activeUrl).pathname.match(/^\/(\w{1,15})\/status(?:es)?\//i)?.[1];
+            els.sourceHint.textContent = author && author !== "i" ? `Current tab · @${author}` : "Current tab";
+          }
         } catch {}
       }
     } catch {}
