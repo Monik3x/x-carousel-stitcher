@@ -6,7 +6,7 @@ Neither version needs an X account or API keys. Both pull full-resolution `?name
 
 ## Firefox extension
 
-Multi-image posts on X get a `Stitch` button. It ignores single photos, videos, GIFs, and quoted media so the button stays out of the way. On a post page it sits on the right side of the date and views row. In the timeline feed it sits next to the bookmark button by default, with options in the popup to place it in the top-right header or switch to a simplified icon-only button.
+Multi-image posts on X get a `Stitch` button. It ignores single photos, videos, GIFs, and quoted media so the button stays out of the way. By default it sits on the right side of the date and views row on post pages and next to the bookmark button in timelines, with popup options to place it in the top-right header (space permitting) or switch to a simplified icon-only button.
 
 Clicking `Stitch` opens a viewer tab with all slides kept in memory. From there you can switch between horizontal, vertical, and grid layouts, flip the order, trim overlap, add a gap, change the output format between PNG, JPEG, and WebP, or cap the width without downloading the slides again. Drag to pan across wide strips, use the wheel to scroll horizontally, hold Ctrl while scrolling to zoom, then download the file or copy a PNG to the clipboard. Hold Shift while clicking `Stitch` to skip the viewer and download right away, or switch the default click behavior in the toolbar popup.
 

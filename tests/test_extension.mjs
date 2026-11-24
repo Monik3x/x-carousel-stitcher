@@ -839,3 +839,371 @@ test("content.js injects Stitch only on multi-image posts, in date/views row or 
     MockElement._onMutation = null;
   }
 });
+
+function buildXdsPostDetailArticle({
+  id = "2125270727028859059",
+  photoCount = 0,
+  hasVideo = false,
+  quotedPhotos = 0,
+  quotedAsPlainDiv = false,
+  quotedAsNestedArticle = false
+}) {
+  const mediaChildren = [];
+  for (let i = 1; i <= photoCount; i++) {
+    mediaChildren.push(
+      el("a", { "aria-label": "View media", href: `/NASA/status/${id}/photo/${i}` })
+    );
+  }
+  if (hasVideo) {
+    mediaChildren.push(
+      el("div", { "data-active-media-holder": "" }, {}, [
+        el("video"),
+        el("div", { role: "group" }, { display: "flex", flexDirection: "row" }, [
+          el("button", { "data-icon": "icon-player-play" })
+        ])
+      ])
+    );
+  }
+
+  const headerRight = el("div", { class: "xds-detail-header-right" }, { display: "flex", flexDirection: "row" }, [
+    el("button", { "aria-label": "More", "data-slot": "xds-menu-trigger", type: "button" })
+  ]);
+  const headerRow = el("div", {}, { display: "flex", flexDirection: "row" }, [
+    el("div", { "data-post-avatar": "true" }),
+    el("div", { "data-anchor-to-hovered-child": "" }, {}, [
+      el("a", { href: "/NASA" })
+    ]),
+    headerRight
+  ]);
+
+  const bodyChildren = [
+    headerRow,
+    el("div", { dir: "auto" }),
+    el("div", { class: "media-wrap" }, {}, mediaChildren)
+  ];
+
+  if (quotedPhotos > 0) {
+    const qId = "2999999999999999999";
+    const qMedia = Array.from({ length: quotedPhotos }, (_, i) =>
+      el("a", { "aria-label": "View media", href: `/other/status/${qId}/photo/${i + 1}` })
+    );
+    const qChildren = [
+      el("div", { "data-post-avatar": "true" }),
+      el("div", { "data-anchor-to-hovered-child": "" }, {}, [el("a", { href: "/other" })]),
+      ...qMedia
+    ];
+    if (quotedAsNestedArticle) {
+      bodyChildren.push(el("article", {}, {}, qChildren));
+    } else if (quotedAsPlainDiv) {
+      bodyChildren.push(el("div", {}, {}, qChildren));
+    } else {
+      bodyChildren.push(el("div", { "data-href": `/other/status/${qId}` }, {}, qChildren));
+    }
+  }
+
+  const dateRow = el("div", { class: "xds-date-row" }, { display: "flex", flexDirection: "row" }, [
+    el("span", {}, { display: "inline" }, [
+      el("a", { "data-base-ui-tooltip-trigger": "", href: `/NASA/status/${id}` }, { display: "inline" })
+    ]),
+    el("span", {}, { display: "inline" }),
+    el("a", { "data-base-ui-tooltip-trigger": "", href: `/NASA/status/${id}` }, { display: "inline-flex" })
+  ]);
+  bodyChildren.push(dateRow);
+
+  const bookmarkCluster = el("div", { class: "xds-bm-share" }, { display: "flex", flexDirection: "row" }, [
+    el("div", {}, {}, [
+      el("span", { "data-engagement-action": "bookmark" }, {}, [
+        el("button", { "aria-label": "Bookmark", type: "button" })
+      ])
+    ]),
+    el("button", { "aria-label": "Share", "data-engagement-action": "share", "data-slot": "xds-menu-trigger", type: "button" })
+  ]);
+  const actionBar = el("div", { role: "group" }, { display: "flex", flexDirection: "row" }, [
+    el("div", { "data-engagement-action": "reply" }),
+    el("div", { "data-engagement-action": "retweet" }, {}, [
+      el("button", { "data-slot": "xds-menu-trigger", type: "button" })
+    ]),
+    bookmarkCluster
+  ]);
+  bodyChildren.push(actionBar);
+
+  return { article: el("article", {}, {}, [el("div", {}, {}, bodyChildren)]), dateRow, bookmarkCluster, headerRight };
+}
+
+function buildXdsTimelineArticle({ id = "2125318351341994436", photoCount = 4, moreLabel = "Mai multe" }) {
+  const authorBlock = el("div", { "data-anchor-to-hovered-child": "" }, {}, [
+    el("a", { href: "/NASA" })
+  ]);
+  const timeLink = el("a", { "data-base-ui-tooltip-trigger": "", href: `/NASA/status/${id}` });
+  const headerRight = el("div", { class: "xds-header-right" }, { display: "flex", flexDirection: "row" }, [
+    el("button", { "aria-label": moreLabel, "data-slot": "xds-menu-trigger", type: "button" })
+  ]);
+  const headerRow = el("div", {}, { display: "flex", flexDirection: "row" }, [
+    el("div", {}, { display: "flex", flexDirection: "row" }, [
+      authorBlock,
+      el("span", {}, {}, [timeLink])
+    ]),
+    headerRight
+  ]);
+  const media = Array.from({ length: photoCount }, (_, i) =>
+    el("a", { "aria-label": "View media", href: `/NASA/status/${id}/photo/${i + 1}` })
+  );
+  const bookmarkCluster = el("div", { class: "xds-bm-share" }, { display: "flex", flexDirection: "row" }, [
+    el("div", {}, {}, [
+      el("span", { "data-engagement-action": "bookmark" }, {}, [
+        el("button", { "aria-label": "Bookmark", type: "button" })
+      ])
+    ]),
+    el("button", { "aria-label": "Share", "data-engagement-action": "share", "data-slot": "xds-menu-trigger", type: "button" })
+  ]);
+  const actionBar = el("div", { role: "group" }, { display: "flex", flexDirection: "row" }, [
+    el("div", { "data-engagement-action": "reply" }),
+    el("div", { "data-engagement-action": "retweet" }, {}, [
+      el("button", { "data-slot": "xds-menu-trigger", type: "button" })
+    ]),
+    el("div", { "data-engagement-action": "generic" }, {}, [
+      el("a", { href: `/NASA/status/${id}/analytics` })
+    ]),
+    bookmarkCluster
+  ]);
+  const article = el("article", {}, {}, [
+    el("div", { "data-href": `/NASA/status/${id}` }, { display: "flex", flexDirection: "row" }, [
+      el("div", { "data-post-avatar": "true" }),
+      el("div", {}, {}, [
+        headerRow,
+        el("div", { dir: "auto" }),
+        el("div", { class: "media-wrap" }, {}, media),
+        actionBar
+      ])
+    ])
+  ]);
+  return { article, headerRight, actionBar, bookmarkCluster, authorBlock, timeLink };
+}
+
+test("content.js supports X's Base UI/XDS DOM without data-testid or <time>", async () => {
+  const contentSrc = fs.readFileSync(path.join(ROOT, "firefox-extension", "content.js"), "utf8");
+  const head = el("head");
+  const body = el("body");
+
+  const cases = {
+    detailMulti: buildXdsPostDetailArticle({ id: "2125270727028859059", photoCount: 4 }),
+    detailSingle: buildXdsPostDetailArticle({ id: "2125270727028859060", photoCount: 1 }),
+    detailVideo: buildXdsPostDetailArticle({ id: "2125270727028859061", photoCount: 0, hasVideo: true }),
+    detailSingleQuotingFour: buildXdsPostDetailArticle({ id: "2125270727028859062", photoCount: 1, quotedPhotos: 4 }),
+    detailPlainQuoteFour: buildXdsPostDetailArticle({ id: "2125270727028859063", photoCount: 1, quotedPhotos: 4, quotedAsPlainDiv: true }),
+    detailNestedArticleQuote: buildXdsPostDetailArticle({ id: "2125270727028859064", photoCount: 1, quotedPhotos: 4, quotedAsNestedArticle: true }),
+    timelineMulti: buildXdsTimelineArticle({ id: "2125318351341994436", photoCount: 3 }),
+    timelineSingle: buildXdsTimelineArticle({ id: "2125318351341994437", photoCount: 1 })
+  };
+
+  for (const c of Object.values(cases)) body.appendChild(c.article);
+
+  let observerCallback = null;
+  let observerConfig = null;
+  let observerTarget = null;
+  let storageChangeListener = null;
+
+  MockElement._onMutation = (record) => {
+    if (!observerCallback || !observerConfig || !observerTarget) return;
+    if (!observerTarget.contains(record.target)) return;
+    if (record.type === "childList" && observerConfig.childList) {
+      observerCallback([record]);
+    } else if (
+      record.type === "attributes" &&
+      observerConfig.attributes &&
+      (!observerConfig.attributeFilter || observerConfig.attributeFilter.includes(record.attributeName))
+    ) {
+      observerCallback([record]);
+    }
+  };
+
+  const document = {
+    head,
+    body,
+    documentElement: el("html", {}, {}, [head, body]),
+    getElementById: (id) => head.children.find((c) => c.id === id) || null,
+    createElement: (tag) => el(tag),
+    createElementNS: (_ns, tag) => el(tag),
+    querySelectorAll: (sel) => body.querySelectorAll(sel)
+  };
+
+  const windowListeners = {};
+  const sandbox = {
+    document,
+    window: {
+      addEventListener: (ev, fn) => { (windowListeners[ev] ||= []).push(fn); }
+    },
+    location: { pathname: "/NASA" },
+    getComputedStyle: (node) => node._computedStyle || { display: "block", flexDirection: "row" },
+    MutationObserver: class {
+      constructor(cb) { observerCallback = cb; }
+      observe(target, config) { observerTarget = target; observerConfig = config; }
+    },
+    requestAnimationFrame: (fn) => fn(),
+    setTimeout: () => 0,
+    browser: {
+      storage: {
+        local: { get: async () => ({ options: { compactButton: false } }) },
+        onChanged: { addListener: (fn) => { storageChangeListener = fn; } }
+      },
+      runtime: {
+        onMessage: { addListener() {} },
+        sendMessage: async () => ({ ok: true, mode: "viewer", count: 4 })
+      }
+    },
+    console
+  };
+  sandbox.globalThis = sandbox;
+  try {
+    vm.runInNewContext(contentSrc, sandbox, { filename: "content.js" });
+
+    const detailBtn = cases.detailMulti.dateRow.querySelector(".xcs-stitch-btn");
+    assert(detailBtn, "XDS 4-photo detail post must place Stitch button in date/views row");
+    assert.equal(detailBtn.dataset.tweetId, "2125270727028859059");
+
+    const timelineBtn = cases.timelineMulti.bookmarkCluster.querySelector(".xcs-stitch-btn");
+    assert(timelineBtn, "XDS timeline multi-photo tweet must place Stitch button next to Bookmark");
+    assert.equal(timelineBtn.dataset.tweetId, "2125318351341994436");
+    assert.equal(
+      cases.timelineMulti.actionBar.querySelector(".xcs-date-row"),
+      null,
+      "Timeline Views /analytics link inside engagement group must not be treated as a date row"
+    );
+    assert.equal(
+      cases.timelineMulti.bookmarkCluster.children[0].querySelector(".xcs-stitch-btn") !== null,
+      true,
+      "Stitch button must sit before Bookmark inside the Bookmark/Share cluster"
+    );
+
+    for (const key of [
+      "detailSingle",
+      "detailVideo",
+      "detailSingleQuotingFour",
+      "detailPlainQuoteFour",
+      "detailNestedArticleQuote",
+      "timelineSingle"
+    ]) {
+      assert.equal(cases[key].article.querySelector(".xcs-stitch-btn"), null, `${key} must not show Stitch button`);
+    }
+
+    // Exercise XDS negative-margin tolerance (3px hitbox touch with More) and resize recovery after overlap
+    let tlTimeRight = 300;
+    cases.timelineMulti.article._rect = () => ({ left: 0, right: 590, top: 0, bottom: 400, width: 590, height: 400 });
+    cases.timelineMulti.timeLink._rect = () => ({ left: 260, right: tlTimeRight, top: 10, bottom: 26, width: tlTimeRight - 260, height: 16 });
+    cases.timelineMulti.headerRight.children[0]._rect = () => ({ left: 560, right: 592, top: 8, bottom: 40, width: 32, height: 32 });
+    const origTlInsert = cases.timelineMulti.headerRight.insertBefore.bind(cases.timelineMulti.headerRight);
+    cases.timelineMulti.headerRight.insertBefore = (child, ref) => {
+      child._rect = () => ({ left: 529, right: 563, top: 10, bottom: 38, width: 34, height: 28 });
+      return origTlInsert(child, ref);
+    };
+
+    // Header-auto placement must work on both timeline and expanded detail posts regardless of locale
+    storageChangeListener({ options: { newValue: { compactButton: false, buttonPosition: "header-auto" } } }, "local");
+    assert(
+      cases.timelineMulti.headerRight.querySelector(".xcs-stitch-btn"),
+      "XDS header-auto must stay in header despite 3px negative-margin hitbox touch"
+    );
+    assert(
+      cases.detailMulti.headerRight.querySelector(".xcs-stitch-btn"),
+      "XDS header-auto must keep Stitch in the top-right header on expanded posts"
+    );
+    assert.equal(cases.detailMulti.dateRow.querySelector(".xcs-stitch-btn"), null);
+    assert.equal(
+      cases.detailMulti.dateRow.classList.contains("xcs-date-row"),
+      false,
+      "Leaving the date row for the header must clear .xcs-date-row"
+    );
+
+    // Overlap moves Stitch to Bookmark; widening the viewport (resize) returns it to the header
+    tlTimeRight = 545;
+    cases.timelineMulti.article.appendChild(el("span"));
+    assert.equal(cases.timelineMulti.headerRight.querySelector(".xcs-stitch-btn"), null);
+    assert(cases.timelineMulti.bookmarkCluster.querySelector(".xcs-stitch-btn"));
+    tlTimeRight = 300;
+    for (const fn of windowListeners.resize || []) fn();
+    assert(
+      cases.timelineMulti.headerRight.querySelector(".xcs-stitch-btn"),
+      "Widening viewport on resize must restore Stitch to the header"
+    );
+
+    // Under header-auto without a header menu button, repeated mutations must not reinsert into the same action-bar slot
+    const noMenuId = "2125318351341994488";
+    const noMenuCluster = el("div", { class: "xds-bm-share" }, { display: "flex", flexDirection: "row" }, [
+      el("div", {}, {}, [
+        el("span", { "data-engagement-action": "bookmark" }, {}, [el("button", { type: "button" })])
+      ]),
+      el("button", { "data-engagement-action": "share", "data-slot": "xds-menu-trigger", type: "button" })
+    ]);
+    const noMenuArticle = el("article", {}, {}, [
+      el("div", { "data-href": `/NASA/status/${noMenuId}` }, {}, [
+        el("div", { "data-anchor-to-hovered-child": "" }, {}, [el("a", { href: "/NASA" })]),
+        el("div", { class: "media-wrap" }, {}, [
+          el("a", { href: `/NASA/status/${noMenuId}/photo/1` }),
+          el("a", { href: `/NASA/status/${noMenuId}/photo/2` })
+        ]),
+        el("div", { role: "group" }, { display: "flex", flexDirection: "row" }, [noMenuCluster])
+      ])
+    ]);
+    body.appendChild(noMenuArticle);
+    assert(noMenuCluster.querySelector(".xcs-stitch-btn"));
+    let redundantInserts = 0;
+    const origNoMenuInsert = noMenuCluster.insertBefore.bind(noMenuCluster);
+    noMenuCluster.insertBefore = (child, ref) => {
+      redundantInserts++;
+      return origNoMenuInsert(child, ref);
+    };
+    noMenuArticle.appendChild(el("span"));
+    assert.equal(redundantInserts, 0, "Action-bar placement must skip redundant DOM writes when already in slot");
+
+    // Switching back to bookmark returns expanded posts to the date/views row
+    storageChangeListener({ options: { newValue: { compactButton: false, buttonPosition: "bookmark" } } }, "local");
+    assert(cases.detailMulti.dateRow.querySelector(".xcs-stitch-btn"));
+    assert.equal(cases.detailMulti.headerRight.querySelector(".xcs-stitch-btn"), null);
+
+    // Expanding a post incrementally (action bar mounts before date/views row) must promote button into dateRow,
+    // and a status link inside the post body (div[dir="auto"]) must not hijack tweetId on an analytics-only detail post
+    const spaId = "2125318351341994499";
+    const spaActionCluster = el("div", { class: "xds-bm-share" }, { display: "flex", flexDirection: "row" }, [
+      el("div", {}, {}, [
+        el("span", { "data-engagement-action": "bookmark" }, {}, [el("button", { type: "button" })])
+      ]),
+      el("button", { "data-engagement-action": "share", "data-slot": "xds-menu-trigger", type: "button" })
+    ]);
+    const spaBody = el("div", {}, {}, [
+      el("div", {}, { display: "flex", flexDirection: "row" }, [
+        el("div", { "data-post-avatar": "true" }),
+        el("div", { "data-anchor-to-hovered-child": "" }, {}, [el("a", { href: "/NASA" })])
+      ]),
+      el("div", { dir: "auto" }, {}, [
+        el("a", { href: "https://x.com/other/status/9999999999999999999/analytics" }),
+        el("a", { href: "https://x.com/other/status/8888888888888888888/photo/1" })
+      ]),
+      el("div", { class: "media-wrap" }, {}, [
+        el("a", { href: `/NASA/status/${spaId}/photo/1` }),
+        el("a", { href: `/NASA/status/${spaId}/photo/2` })
+      ]),
+      el("div", { role: "group" }, { display: "flex", flexDirection: "row" }, [spaActionCluster])
+    ]);
+    const spaArticle = el("article", {}, {}, [spaBody]);
+    body.appendChild(spaArticle);
+    const spaInitialBtn = spaActionCluster.querySelector(".xcs-stitch-btn");
+    assert(spaInitialBtn, "Initial mount without dateRow falls back to Bookmark");
+    assert.equal(spaInitialBtn.dataset.tweetId, spaId, "Body status link must not override post's own ID");
+
+    // Date/views row arrives with only an /analytics Views link (logged-in post detail style)
+    const lateDateRow = el("div", { class: "xds-late-date-row" }, { display: "flex", flexDirection: "row" }, [
+      el("span"),
+      el("a", { href: `/NASA/status/${spaId}/analytics` })
+    ]);
+    spaBody.appendChild(lateDateRow);
+    const promotedBtn = lateDateRow.querySelector(".xcs-stitch-btn");
+    assert(
+      promotedBtn,
+      "Late-arriving /analytics date/views row must promote Stitch button out of Bookmark bar"
+    );
+    assert.equal(promotedBtn.dataset.tweetId, spaId);
+    assert.equal(spaActionCluster.querySelector(".xcs-stitch-btn"), null);
+  } finally {
+    MockElement._onMutation = null;
+  }
+});

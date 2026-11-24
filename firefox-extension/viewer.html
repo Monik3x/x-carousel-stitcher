@@ -56,34 +56,40 @@
             <option value="2048">2,048 px</option>
           </select>
         </label>
-        <details class="adjustments">
-          <summary>
-            <svg class="icon" aria-hidden="true"><use href="icons/tools.svg#settings"></use></svg>
-            Stitch adjustments
-          </summary>
-          <div class="adjustment-fields">
-            <label class="ctrl">
-              Gap (px)
-              <input id="gap-input" type="number" min="0" max="200" value="0" />
-            </label>
-            <label class="ctrl">
-              Trim overlap (px)
-              <input
-                id="overlap-input"
-                type="number"
-                min="0"
-                max="400"
-                value="0"
-                aria-describedby="trim-help"
-              />
-            </label>
-            <label class="check">
-              <input id="reverse-check" type="checkbox" />
-              Reverse panel order
-            </label>
-            <span id="trim-help"></span>
-          </div>
-        </details>
+        <button
+          type="button"
+          id="adjustments-toggle"
+          class="adjustments-toggle"
+          aria-expanded="false"
+          aria-controls="adjustments-panel"
+        >
+          <svg class="icon" aria-hidden="true"><use href="icons/tools.svg#settings"></use></svg>
+          Stitch adjustments
+        </button>
+      </div>
+      <div id="adjustments-panel" class="adjustments-panel hidden" aria-label="Stitch adjustments">
+        <label class="ctrl">
+          Gap (px)
+          <input id="gap-input" type="number" min="0" max="200" value="0" />
+        </label>
+        <div class="trim-group">
+          <label class="ctrl">
+            Trim overlap (px)
+            <input
+              id="overlap-input"
+              type="number"
+              min="0"
+              max="400"
+              value="0"
+              aria-describedby="trim-help"
+            />
+          </label>
+          <span id="trim-help"></span>
+        </div>
+        <label class="check">
+          <input id="reverse-check" type="checkbox" />
+          Reverse panel order
+        </label>
       </div>
     </header>
     <div id="perm-banner" class="banner hidden">

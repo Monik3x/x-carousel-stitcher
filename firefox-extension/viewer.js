@@ -23,6 +23,8 @@
     gap: document.getElementById("gap-input"),
     overlap: document.getElementById("overlap-input"),
     reverse: document.getElementById("reverse-check"),
+    adjustmentsToggle: document.getElementById("adjustments-toggle"),
+    adjustmentsPanel: document.getElementById("adjustments-panel"),
     fitHeightBtn: document.getElementById("fit-height-btn"),
     fitWidthBtn: document.getElementById("fit-width-btn"),
     zoomOutBtn: document.getElementById("zoom-out-btn"),
@@ -354,6 +356,11 @@
       renderStitched();
     }, 120);
   }
+
+  els.adjustmentsToggle.addEventListener("click", () => {
+    const open = els.adjustmentsPanel.classList.toggle("hidden") === false;
+    els.adjustmentsToggle.setAttribute("aria-expanded", String(open));
+  });
 
   for (const el of [
     els.direction,

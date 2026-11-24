@@ -6,8 +6,17 @@
   const DATE_ROW_CLASS = "xcs-date-row";
   const COMPACT_ROOT_CLASS = "xcs-compact";
   const STATUS_LINK_RE = /\/status\/(\d{10,25})(?:\/|$|\?)/;
-  const PHOTO_LINK_RE = /\/status\/\d+\/photo\/(\d+)/;
+  const PERMALINK_HREF_RE = /^(?:https?:\/\/(?:mobile\.)?(?:x|twitter)\.com)?\/[^/?#]+\/status\/(\d{10,25})(?:\/?(?:[?#].*)?)?$/i;
+  const ANALYTICS_LINK_RE = /\/status\/(\d{10,25})\/analytics(?:\/|$|\?)/i;
+  const PHOTO_LINK_RE = /\/status\/(\d{10,25})\/photo\/(\d+)/;
   const VIDEO_LINK_RE = /\/status\/\d+\/video\/\d+/;
+  const AUTHOR_MARKER_SELECTOR = '[data-testid="User-Name"], [data-anchor-to-hovered-child]';
+  const NON_DATE_ROW_SELECTOR =
+    '[data-testid="tweetText"], [data-testid="tweetPhoto"], [data-testid="User-Name"], [data-anchor-to-hovered-child], [data-post-avatar="true"], a[href*="/photo/"], a[href*="/video/"], div[role="group"]';
+  const BOOKMARK_SELECTOR =
+    '[data-testid="bookmark"], [data-testid="removeBookmark"], [data-engagement-action="bookmark"]';
+  const ACTION_BAR_CHILD_SELECTOR =
+    '[data-testid="bookmark"], [data-testid="removeBookmark"], [data-engagement-action="bookmark"], [data-engagement-action="reply"], [data-engagement-action="like"]';
   const activeButtons = new Map();
   let buttonPosition = "bookmark";
 
@@ -16,7 +25,7 @@
     const style = document.createElement("style");
     style.id = "xcs-styles";
     style.textContent = `
-      .${DATE_ROW_CLASS} {
+      .${DATE_ROW_CLASS}:has(> .${WRAPPER_CLASS}.xcs-in-date-row) {
         width: 100% !important;
         max-width: 100% !important;
         align-items: center !important;
@@ -106,19 +115,53 @@
     (document.head || document.documentElement).appendChild(style);
   }
 
-  function getQuotedContainers(article) {
-    const userNames = article.querySelectorAll('[data-testid="User-Name"]');
-    if (userNames.length <= 1) return [];
+  function findQuotedCardAncestor(marker, article, primaryAuthor) {
+    let cur = marker.parentElement;
+    let lastExclusive = null;
+    while (cur && cur !== article) {
+      if (primaryAuthor && cur.contains(primaryAuthor)) {
+        break;
+      }
+      if (cur.matches('article, [data-href*="/status/"], div[role="link"], div[tabindex="0"]')) {
+        return cur;
+      }
+      if (!cur.querySelector("[data-engagement-action]")) {
+        lastExclusive = cur;
+      }
+      cur = cur.parentElement;
+    }
+    return lastExclusive;
+  }
 
+  function getQuotedContainers(article) {
     const containers = [];
-    for (let i = 1; i < userNames.length; i++) {
-      const card =
-        userNames[i].closest('div[role="link"]') ||
-        userNames[i].closest('div[tabindex="0"]');
-      if (card && article.contains(card) && card !== article) {
+    const addUnique = (card) => {
+      if (card && article.contains(card) && card !== article && !containers.includes(card)) {
         containers.push(card);
       }
+    };
+
+    for (const nested of article.querySelectorAll("article")) {
+      if (nested !== article) addUnique(nested);
     }
+
+    let authorMarkers = Array.from(article.querySelectorAll('[data-testid="User-Name"]'));
+    const primaryHeaderAuthor =
+      authorMarkers[0] || article.querySelector("[data-anchor-to-hovered-child]");
+    if (authorMarkers.length <= 1) {
+      authorMarkers = Array.from(article.querySelectorAll("[data-anchor-to-hovered-child]"));
+    }
+    if (authorMarkers.length <= 1) {
+      authorMarkers = Array.from(article.querySelectorAll('[data-post-avatar="true"]'));
+    }
+
+    if (authorMarkers.length > 1) {
+      const primaryAuthor = primaryHeaderAuthor || authorMarkers[0];
+      for (let i = 1; i < authorMarkers.length; i++) {
+        addUnique(findQuotedCardAncestor(authorMarkers[i], article, primaryAuthor));
+      }
+    }
+
     return containers;
   }
 
@@ -141,7 +184,7 @@
     if (
       el.querySelector &&
       el.querySelector(
-        'video, [data-testid="videoComponent"], [data-testid="videoPlayer"], [data-testid="playButton"], a[href*="/video/"]'
+        'video, [data-testid="videoComponent"], [data-testid="videoPlayer"], [data-testid="playButton"], [data-icon="icon-player-play"], a[href*="/video/"]'
       )
     ) {
       return true;
@@ -149,27 +192,70 @@
     return false;
   }
 
+  function isInPostText(el) {
+    return Boolean(el.closest('[data-testid="tweetText"], div[dir="auto"]'));
+  }
+
+  function isNonDateAnchorContext(el) {
+    return Boolean(isInPostText(el) || el.closest('div[role="group"], [data-engagement-action]'));
+  }
+
   function findMainTimeElement(article, quotedContainers) {
-    const times = article.querySelectorAll("time");
-    for (const t of times) {
+    for (const t of article.querySelectorAll("time")) {
       if (!isInsideAny(t, quotedContainers)) return t;
     }
-    return null;
+
+    let fallback = null;
+    for (const a of article.querySelectorAll('a[href*="/status/"]')) {
+      if (isInsideAny(a, quotedContainers) || isNonDateAnchorContext(a)) continue;
+      const href = a.getAttribute("href") || "";
+      if (!PERMALINK_HREF_RE.test(href)) continue;
+      if (a.getAttribute("data-base-ui-tooltip-trigger") !== null) {
+        return a;
+      }
+      if (!fallback) fallback = a;
+    }
+    return fallback;
   }
 
   function findTweetStatusId(article, quotedContainers) {
-    const timeEl = findMainTimeElement(article, quotedContainers);
-    if (timeEl) {
-      const timeLink = timeEl.closest("a[href]");
+    for (const t of article.querySelectorAll("time")) {
+      if (isInsideAny(t, quotedContainers)) continue;
+      const timeLink = t.closest("a[href]");
       if (timeLink) {
         const m = (timeLink.getAttribute("href") || "").match(STATUS_LINK_RE);
         if (m) return m[1];
       }
+      break;
     }
 
-    const links = article.querySelectorAll('a[href*="/status/"]');
-    for (const a of links) {
-      if (isInsideAny(a, quotedContainers)) continue;
+    for (const a of article.querySelectorAll('a[href*="/status/"]')) {
+      if (isInsideAny(a, quotedContainers) || isNonDateAnchorContext(a)) continue;
+      if (a.getAttribute("data-base-ui-tooltip-trigger") === null) continue;
+      const m = (a.getAttribute("href") || "").match(PERMALINK_HREF_RE);
+      if (m) return m[1];
+    }
+
+    for (const node of article.querySelectorAll('[data-href*="/status/"]')) {
+      if (isInsideAny(node, quotedContainers)) continue;
+      const m = (node.getAttribute("data-href") || "").match(STATUS_LINK_RE);
+      if (m) return m[1];
+    }
+
+    for (const a of article.querySelectorAll('a[href*="/analytics"]')) {
+      if (isInsideAny(a, quotedContainers) || isInPostText(a)) continue;
+      const m = (a.getAttribute("href") || "").match(ANALYTICS_LINK_RE);
+      if (m) return m[1];
+    }
+
+    for (const a of article.querySelectorAll('a[href*="/photo/"], a[href*="/video/"]')) {
+      if (isInsideAny(a, quotedContainers) || isInPostText(a)) continue;
+      const m = (a.getAttribute("href") || "").match(STATUS_LINK_RE);
+      if (m) return m[1];
+    }
+
+    for (const a of article.querySelectorAll('a[href*="/status/"]')) {
+      if (isInsideAny(a, quotedContainers) || isNonDateAnchorContext(a)) continue;
       const m = (a.getAttribute("href") || "").match(STATUS_LINK_RE);
       if (m) return m[1];
     }
@@ -178,7 +264,7 @@
     return pageMatch ? pageMatch[1] : null;
   }
 
-  function hasMultipleImages(article, quotedContainers) {
+  function hasMultipleImages(article, quotedContainers, tweetId) {
     const photoNodes = Array.from(article.querySelectorAll('[data-testid="tweetPhoto"]')).filter(
       (el) => !isInsideAny(el, quotedContainers) && !isVideoElementOrLink(el)
     );
@@ -186,11 +272,11 @@
     const photoIndices = new Set();
     const links = article.querySelectorAll('a[href*="/photo/"]');
     for (const a of links) {
-      if (isInsideAny(a, quotedContainers)) continue;
+      if (isInsideAny(a, quotedContainers) || isVideoElementOrLink(a)) continue;
       const href = a.getAttribute("href") || "";
       if (VIDEO_LINK_RE.test(href)) continue;
       const m = href.match(PHOTO_LINK_RE);
-      if (m) photoIndices.add(m[1]);
+      if (m && (!tweetId || m[1] === tweetId)) photoIndices.add(m[2]);
     }
 
     if (photoNodes.length >= 2 || photoIndices.size >= 2) {
@@ -288,25 +374,66 @@
     return btn;
   }
 
-  function findDateViewsRow(article, quotedContainers) {
-    const timeEl = findMainTimeElement(article, quotedContainers);
-    if (!timeEl) return null;
-
-    // On timeline tweets, <time> lives inside [data-testid="User-Name"]
+  function isInAuthorHeader(timeEl, article) {
     if (timeEl.closest('[data-testid="User-Name"]')) {
-      return null;
+      return true;
+    }
+    let cur = timeEl.parentElement;
+    for (let depth = 0; depth < 3 && cur && cur !== article; depth++) {
+      if (
+        cur.querySelector(
+          'div[role="group"], [data-testid="tweetPhoto"], a[href*="/photo/"], a[href*="/video/"]'
+        )
+      ) {
+        break;
+      }
+      if (cur.querySelector(AUTHOR_MARKER_SELECTOR)) {
+        return true;
+      }
+      cur = cur.parentElement;
+    }
+    return false;
+  }
+
+  function findDateRowAnchor(article, quotedContainers) {
+    for (const t of article.querySelectorAll("time")) {
+      if (!isInsideAny(t, quotedContainers) && !isInAuthorHeader(t, article)) {
+        return t.closest("a[href]") || t;
+      }
     }
 
-    const timeLink = timeEl.closest("a[href]") || timeEl;
+    let fallback = null;
+    for (const a of article.querySelectorAll('a[href*="/status/"]')) {
+      if (isInsideAny(a, quotedContainers) || isNonDateAnchorContext(a)) continue;
+      const href = a.getAttribute("href") || "";
+      if (!PERMALINK_HREF_RE.test(href)) continue;
+      if (isInAuthorHeader(a, article)) continue;
+      if (a.getAttribute("data-base-ui-tooltip-trigger") !== null) {
+        return a;
+      }
+      if (!fallback) fallback = a;
+    }
+    if (fallback) return fallback;
+
+    for (const a of article.querySelectorAll('a[href*="/analytics"]')) {
+      if (isInsideAny(a, quotedContainers) || isNonDateAnchorContext(a)) continue;
+      const href = a.getAttribute("href") || "";
+      if (!ANALYTICS_LINK_RE.test(href)) continue;
+      if (!isInAuthorHeader(a, article)) return a;
+    }
+
+    return null;
+  }
+
+  function findDateViewsRow(article, quotedContainers) {
+    const timeLink = findDateRowAnchor(article, quotedContainers);
+    if (!timeLink) return null;
+
     let bestRow = null;
     let cur = timeLink.parentElement;
 
     for (let depth = 0; depth < 6 && cur && cur !== article; depth++) {
-      if (
-        cur.querySelector(
-          '[data-testid="tweetText"], [data-testid="tweetPhoto"], [data-testid="User-Name"], div[role="group"]'
-        )
-      ) {
+      if (cur.querySelector(NON_DATE_ROW_SELECTOR)) {
         break;
       }
 
@@ -324,21 +451,45 @@
     return bestRow || timeLink.parentElement;
   }
 
-  function findHeaderRightTarget(article, quotedContainers) {
-    const carets = article.querySelectorAll('[data-testid="caret"]');
-    let caret = null;
-    for (const c of carets) {
-      if (!isInsideAny(c, quotedContainers)) {
-        caret = c;
-        break;
-      }
+  function clearDateRowClass(wrapper) {
+    if (wrapper.classList.contains("xcs-in-date-row") && wrapper.parentElement) {
+      wrapper.parentElement.classList.remove(DATE_ROW_CLASS);
     }
+  }
+
+  function placeInDateRow(dateRow, wrapper) {
+    if (wrapper.parentElement !== dateRow) {
+      clearDateRowClass(wrapper);
+      dateRow.appendChild(wrapper);
+    }
+    wrapper.classList.remove("xcs-in-header", "xcs-in-action-bar");
+    dateRow.classList.add(DATE_ROW_CLASS);
+    wrapper.classList.add("xcs-in-date-row");
+  }
+
+  function findHeaderMenuButton(article, quotedContainers) {
+    for (const c of article.querySelectorAll('[data-testid="caret"]')) {
+      if (!isInsideAny(c, quotedContainers)) return c;
+    }
+
+    let fallback = null;
+    for (const btn of article.querySelectorAll('button[data-slot="xds-menu-trigger"]')) {
+      if (isInsideAny(btn, quotedContainers)) continue;
+      if (btn.closest('div[role="group"]') || btn.closest("[data-engagement-action]")) continue;
+      if (btn.getAttribute("aria-label") === "More") return btn;
+      if (!fallback) fallback = btn;
+    }
+    return fallback;
+  }
+
+  function findHeaderRightTarget(article, quotedContainers) {
+    const caret = findHeaderMenuButton(article, quotedContainers);
     if (!caret) return null;
 
     let target = caret.parentElement;
     let cur = caret.parentElement;
     for (let depth = 0; depth < 4 && cur && cur !== article; depth++) {
-      if (cur.querySelector('[data-testid="User-Name"]')) {
+      if (cur.querySelector(AUTHOR_MARKER_SELECTOR)) {
         break;
       }
       const cs = getComputedStyle(cur);
@@ -369,7 +520,7 @@
 
     if (typeof article.getBoundingClientRect === "function") {
       const articleRect = article.getBoundingClientRect();
-      if (articleRect.width > 0 && wrapRect.right > articleRect.right + 1) {
+      if (articleRect.width > 0 && wrapRect.right > articleRect.right + 4) {
         return true;
       }
     }
@@ -381,7 +532,7 @@
       }
     }
 
-    const userNames = article.querySelectorAll('[data-testid="User-Name"]');
+    const userNames = article.querySelectorAll(AUTHOR_MARKER_SELECTOR);
     for (const un of userNames) {
       if (isInsideAny(un, quotedContainers)) continue;
       if (typeof un.getBoundingClientRect === "function") {
@@ -405,7 +556,7 @@
     if (headerRight) {
       for (const sib of headerRight.children) {
         if (sib === wrapper || typeof sib.getBoundingClientRect !== "function") continue;
-        if (rectsOverlap(wrapRect, sib.getBoundingClientRect(), 0)) {
+        if (rectsOverlap(wrapRect, sib.getBoundingClientRect(), -4)) {
           return true;
         }
       }
@@ -414,19 +565,38 @@
     return false;
   }
 
+  function insertBeforeIfNeeded(parent, node, ref) {
+    if (node.parentElement === parent) {
+      const children = parent.children;
+      if (ref) {
+        const refIdx = Array.prototype.indexOf.call(children, ref);
+        if (refIdx > 0 && children[refIdx - 1] === node) return;
+      } else if (children[children.length - 1] === node) {
+        return;
+      }
+    }
+    if (ref) parent.insertBefore(node, ref);
+    else parent.appendChild(node);
+  }
+
   function placeInActionBar(article, wrapper, quotedContainers) {
     const groups = Array.from(article.querySelectorAll('div[role="group"]')).filter(
       (g) => !isInsideAny(g, quotedContainers)
     );
-    const actionBar = groups.length > 0 ? groups[groups.length - 1] : null;
+    const engagementGroups = groups.filter((g) => g.querySelector(ACTION_BAR_CHILD_SELECTOR));
+    const actionBar =
+      engagementGroups.length > 0
+        ? engagementGroups[engagementGroups.length - 1]
+        : groups.length > 0
+          ? groups[groups.length - 1]
+          : null;
     if (!actionBar) return false;
 
+    clearDateRowClass(wrapper);
     wrapper.classList.remove("xcs-in-header", "xcs-in-date-row");
     wrapper.classList.add("xcs-in-action-bar");
 
-    const bookmarkBtn = actionBar.querySelector(
-      '[data-testid="bookmark"], [data-testid="removeBookmark"]'
-    );
+    const bookmarkBtn = actionBar.querySelector(BOOKMARK_SELECTOR);
     if (bookmarkBtn) {
       let slot = bookmarkBtn;
       while (slot.parentElement && slot.parentElement !== actionBar) {
@@ -438,40 +608,53 @@
         while (bmChild.parentElement && bmChild.parentElement !== slot) {
           bmChild = bmChild.parentElement;
         }
-        slot.insertBefore(wrapper, bmChild);
+        insertBeforeIfNeeded(slot, wrapper, bmChild);
       } else {
-        actionBar.insertBefore(wrapper, slot);
+        insertBeforeIfNeeded(actionBar, wrapper, slot);
       }
       return true;
     }
 
-    actionBar.appendChild(wrapper);
+    insertBeforeIfNeeded(actionBar, wrapper, null);
     return true;
   }
 
-  function placeTimelineButton(article, wrapper, quotedContainers) {
+  function placeInHeader(headerRight, wrapper) {
+    clearDateRowClass(wrapper);
+    wrapper.classList.remove("xcs-in-action-bar", "xcs-in-date-row");
+    wrapper.classList.add("xcs-in-header");
+    if (wrapper.parentElement !== headerRight) {
+      headerRight.insertBefore(wrapper, headerRight.firstChild);
+    }
+  }
+
+  function placeButton(article, wrapper, quotedContainers) {
+    delete wrapper.dataset.headerFallback;
+
     if (buttonPosition === "header-auto") {
       const headerRight = findHeaderRightTarget(article, quotedContainers);
       if (headerRight) {
-        wrapper.classList.remove("xcs-in-action-bar", "xcs-in-date-row");
-        wrapper.classList.add("xcs-in-header");
-        if (wrapper.parentElement !== headerRight) {
-          headerRight.insertBefore(wrapper, headerRight.firstChild);
+        placeInHeader(headerRight, wrapper);
+        if (!headerButtonOverlaps(article, wrapper, headerRight, quotedContainers)) {
+          return;
         }
-        if (headerButtonOverlaps(article, wrapper, headerRight, quotedContainers)) {
-          placeInActionBar(article, wrapper, quotedContainers);
-        }
-        return;
+        wrapper.dataset.headerFallback = "1";
       }
+    }
+
+    const dateRow = findDateViewsRow(article, quotedContainers);
+    if (dateRow) {
+      placeInDateRow(dateRow, wrapper);
+      return;
     }
 
     if (placeInActionBar(article, wrapper, quotedContainers)) return;
 
-    const headerRight = findHeaderRightTarget(article, quotedContainers);
-    if (headerRight) {
-      wrapper.classList.remove("xcs-in-action-bar", "xcs-in-date-row");
-      wrapper.classList.add("xcs-in-header");
-      headerRight.insertBefore(wrapper, headerRight.firstChild);
+    if (buttonPosition !== "header-auto") {
+      const headerRight = findHeaderRightTarget(article, quotedContainers);
+      if (headerRight) {
+        placeInHeader(headerRight, wrapper);
+      }
     }
   }
 
@@ -483,49 +666,65 @@
     if (existingBtn) {
       if (existingBtn.dataset.tweetId === tweetId) {
         const existingWrap = existingBtn.closest(`.${WRAPPER_CLASS}`);
-        if (existingWrap && !existingWrap.classList.contains("xcs-in-date-row")) {
-          if (buttonPosition === "bookmark" && existingWrap.classList.contains("xcs-in-header")) {
-            placeInActionBar(article, existingWrap, quotedContainers);
-          } else if (buttonPosition === "header-auto") {
-            if (existingWrap.classList.contains("xcs-in-header")) {
-              if (
-                headerButtonOverlaps(article, existingWrap, existingWrap.parentElement, quotedContainers)
-              ) {
-                placeInActionBar(article, existingWrap, quotedContainers);
-              }
-            } else if (repositionExisting && existingWrap.classList.contains("xcs-in-action-bar")) {
-              placeTimelineButton(article, existingWrap, quotedContainers);
+        if (!existingWrap) return;
+
+        if (repositionExisting) {
+          placeButton(article, existingWrap, quotedContainers);
+          return;
+        }
+
+        if (existingWrap.classList.contains("xcs-in-header")) {
+          const shouldLeaveHeader =
+            buttonPosition === "bookmark" ||
+            headerButtonOverlaps(article, existingWrap, existingWrap.parentElement, quotedContainers);
+          if (shouldLeaveHeader) {
+            if (buttonPosition === "header-auto") {
+              existingWrap.dataset.headerFallback = "1";
+            } else {
+              delete existingWrap.dataset.headerFallback;
             }
+            const dateRow = findDateViewsRow(article, quotedContainers);
+            if (dateRow) {
+              placeInDateRow(dateRow, existingWrap);
+            } else {
+              placeInActionBar(article, existingWrap, quotedContainers);
+            }
+          }
+        } else if (buttonPosition === "header-auto" && !existingWrap.dataset.headerFallback) {
+          placeButton(article, existingWrap, quotedContainers);
+        } else if (existingWrap.classList.contains("xcs-in-action-bar")) {
+          const dateRow = findDateViewsRow(article, quotedContainers);
+          if (dateRow) {
+            placeInDateRow(dateRow, existingWrap);
           }
         }
         return;
       }
       // Article node was recycled by X for a different tweet; remove stale button
       const staleWrap = existingBtn.closest(`.${WRAPPER_CLASS}`);
-      if (staleWrap) staleWrap.remove();
-      else existingBtn.remove();
+      if (staleWrap) {
+        clearDateRowClass(staleWrap);
+        staleWrap.remove();
+      } else {
+        existingBtn.remove();
+      }
     }
 
-    if (!tweetId || !hasMultipleImages(article, quotedContainers)) return;
+    if (!tweetId || !hasMultipleImages(article, quotedContainers, tweetId)) return;
 
     const wrapper = document.createElement("div");
     wrapper.className = WRAPPER_CLASS;
     wrapper.appendChild(createStitchButton(tweetId));
 
-    const dateRow = findDateViewsRow(article, quotedContainers);
-    if (dateRow) {
-      dateRow.classList.add(DATE_ROW_CLASS);
-      wrapper.classList.add("xcs-in-date-row");
-      dateRow.appendChild(wrapper);
-      return;
-    }
-
-    placeTimelineButton(article, wrapper, quotedContainers);
+    placeButton(article, wrapper, quotedContainers);
   }
 
   function scanTweets(repositionExisting = false) {
-    const articles = document.querySelectorAll('article[data-testid="tweet"]');
+    const articles = document.querySelectorAll("article");
     for (const article of articles) {
+      if (article.parentElement && article.parentElement.closest("article")) {
+        continue;
+      }
       enhanceArticle(article, repositionExisting);
     }
   }
@@ -594,10 +793,10 @@
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["href"]
+    attributeFilter: ["href", "data-href"]
   });
 
   if (typeof window !== "undefined" && window.addEventListener) {
-    window.addEventListener("resize", scheduleScan);
+    window.addEventListener("resize", () => scheduleScan(true));
   }
 })();
