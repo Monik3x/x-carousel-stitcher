@@ -14,7 +14,9 @@ The toolbar popup auto-fills the active tab when you are on a post page. Right-c
 
 ### Installing
 
-For a temporary install in standard Firefox, open `about:debugging#/runtime/this-firefox`, click Load Temporary Add-on, and pick `firefox-extension/manifest.json`.
+Install from [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/x-carousel-stitcher/).
+
+For local development or a temporary install, open `about:debugging#/runtime/this-firefox`, click Load Temporary Add-on, and pick `firefox-extension/manifest.json`.
 
 To build a packaged `.xpi` for AMO self-signing or Developer Edition:
 
